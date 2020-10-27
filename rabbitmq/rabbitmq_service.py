@@ -8,6 +8,7 @@ import pika
 from pika.credentials import PlainCredentials
 
 import validators
+from rabbitmq.analysis_exception import AnalysisException
 
 
 class QueueConfig:
@@ -68,19 +69,19 @@ class RabbitMqService:
             self.channel.queue_declare(queue=queue_name, exclusive=True)
             self.channel.queue_bind(exchange=self.exchange, queue=queue_name, routing_key=binding_key)
 
-    def send(self, message, routing_key_suffix='#'):
+    def _send_message(self, message, msg_type='pass'):
         """
-        投递消息到 模式为：mustang.# 的队列 => mustang.[routing_key_suffix]
+        投递消息到 模式为：mustang.# 的队列 => mustang.[msg_type]
         其中 模式： mustang.# 与 Java 约定，不可修改
         :param str message:  消息内容 str
-        :param str routing_key_suffix: 路由后缀
+        :param str msg_type: pass | fail 分别对应发送到成功和失败队列, 默认 pass
         :return:
         """
         # send message to queue(hello)
         self.channel.basic_publish(exchange=self.exchange,
-                                   routing_key=self.SEND_ROUTING_KEY_PREFIX + str(routing_key_suffix),
+                                   routing_key=self.SEND_ROUTING_KEY_PREFIX + msg_type,
                                    body=message)
-        print("send message to %s successful!" % routing_key_suffix)
+        print("send %s message successful!" % msg_type)
 
     def start_listening(self, do_task):
         """
@@ -104,11 +105,17 @@ class RabbitMqService:
             # 执行回调
             try:
                 do_task()
-                self.send('wow i received a message from you , i got u(%s)' % routing_key, routing_key)
+                self._send_message('wow i received a message from you , i got u(%s)' % routing_key)
                 self.channel.basic_ack(delivery_tag=delivery_tag)
-            except BaseException:
-                print('something bad happened..., message will requeue')
+            except AnalysisException as e:
+                print('analysis exception: error: %s' % e.message)
+                self._send_message(e.message, msg_type='fail')
+                self.channel.basic_ack(delivery_tag=delivery_tag)
+            except BaseException as e:
+                print('something bad happened..., message will requeue, error: %s' % e.args)
                 self.channel.basic_reject(delivery_tag=delivery_tag)
+            finally:
+                print('Done !')
 
         for binding_key in self.binding_keys:
             queue_name = binding_key + '_Queue'

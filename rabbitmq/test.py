@@ -5,6 +5,7 @@
 # @Desc    : 消息队列服务 使用示例
 import sys
 
+from rabbitmq.analysis_exception import AnalysisException
 from rabbitmq.rabbitmq_service import QueueConfig
 from rabbitmq.rabbitmq_service import RabbitMqService
 
@@ -17,6 +18,7 @@ rabbitmq_service = RabbitMqService(host='192.168.33.10', username='bagua', passw
 
 def do_task():
     print('do some amazing thing...')
+    raise AnalysisException('omg! how bad u are!')
 
 
 if __name__ == '__main__':
