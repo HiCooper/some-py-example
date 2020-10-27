@@ -10,6 +10,14 @@ from pika.credentials import PlainCredentials
 import validators
 from rabbitmq.analysis_exception import AnalysisException
 
+import logging
+
+logging.basicConfig(filename='rabbitmq.log', level=logging.INFO)
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+handler.setLevel(logging.INFO)
+logger.addHandler(handler)
+
 
 class QueueConfig:
     def __init__(self, exchange=None, default_listen_queue='coffeeBabyQueue',
@@ -25,7 +33,6 @@ class QueueConfig:
         self.exchange = exchange
         self.default_listen_queue = default_listen_queue
         self.binding_keys = binding_keys.split()
-        print(self.binding_keys)
 
 
 class RabbitMqService:
@@ -54,7 +61,7 @@ class RabbitMqService:
         credentials = ''
         if username is not None and password is not None:
             credentials = PlainCredentials(username=username, password=password)
-        print('connecting to rabbitmq server...')
+        logger.info('connecting to rabbitmq server...')
         connection = pika.BlockingConnection(
             pika.ConnectionParameters(host=host, port=port, credentials=credentials))
         self.channel = connection.channel()
@@ -78,7 +85,7 @@ class RabbitMqService:
         self.channel.basic_publish(exchange=self.exchange,
                                    routing_key=self.SEND_ROUTING_KEY_PREFIX + msg_type,
                                    body=message)
-        print("send %s message successful!" % msg_type)
+        logger.info("send %s message successful!", msg_type)
 
     def start_listening(self, do_task):
         """
@@ -98,21 +105,21 @@ class RabbitMqService:
         def callback(ch, method, properties, body):
             delivery_tag = method.delivery_tag
             routing_key = method.routing_key
-            print("Received message from %s, body: %s " % (routing_key, body.decode('utf-8')))
+            logger.info("Received message from %s, body: %s ", (routing_key, body.decode('utf-8')))
             # 执行回调
             try:
                 do_task()
                 self._send_message('wow i received a message from you , i got u(%s)' % routing_key)
                 self.channel.basic_ack(delivery_tag=delivery_tag)
             except AnalysisException as e:
-                print('analysis exception: error: %s' % e.message)
+                logger.info('analysis exception: error: %s', e.message)
                 self._send_message(e.message, msg_type='fail')
                 self.channel.basic_ack(delivery_tag=delivery_tag)
             except BaseException as e:
-                print('something bad happened..., message will requeue, error: %s' % e.args)
+                logger.info('something bad happened..., message will requeue, error: %s', e.args)
                 self.channel.basic_reject(delivery_tag=delivery_tag)
             finally:
-                print('Done !')
+                logger.info('Done !')
 
         for binding_key in self.binding_keys:
             queue_name = binding_key + '_Queue'
@@ -123,5 +130,5 @@ class RabbitMqService:
         # handle guarantee queue
         self.channel.basic_consume(queue=self.default_listen_queue, on_message_callback=callback, auto_ack=False)
 
-        print('Start listening message with binding routing_keys: %s' % self.binding_keys)
+        logger.info('Start listening message with binding routing_keys: %s', self.binding_keys)
         self.channel.start_consuming()
