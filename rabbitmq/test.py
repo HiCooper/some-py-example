@@ -9,7 +9,9 @@ from rabbitmq.analysis_exception import AnalysisException
 from rabbitmq.rabbitmq_service import QueueConfig
 from rabbitmq.rabbitmq_service import RabbitMqService
 
-queue_config = QueueConfig(exchange='topicExchange', default_listen_queue='coffeeBabyQueue', send_queue='mustangQueue',
+import random
+
+queue_config = QueueConfig(exchange='topicExchange', default_listen_queue='coffeeBabyQueue',
                            binding_keys='coffee.cxa coffee.cc')
 # 初始化服务
 rabbitmq_service = RabbitMqService(host='192.168.33.10', username='bagua', password='1qaz@WSX',
@@ -18,7 +20,9 @@ rabbitmq_service = RabbitMqService(host='192.168.33.10', username='bagua', passw
 
 def do_task():
     print('do some amazing thing...')
-    raise AnalysisException('omg! how bad u are!')
+    randint = random.randint(0, 9)
+    if randint % 2 == 0:
+        raise AnalysisException('omg! how bad u are!')
 
 
 if __name__ == '__main__':

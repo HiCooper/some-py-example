@@ -12,20 +12,18 @@ from rabbitmq.analysis_exception import AnalysisException
 
 
 class QueueConfig:
-    def __init__(self, exchange=None, default_listen_queue='coffeeBabyQueue', send_queue=None,
+    def __init__(self, exchange=None, default_listen_queue='coffeeBabyQueue',
                  binding_keys='coffee.#'):
         """
         初始化队列相关配置
         :param str exchange: 交换机名称
         :param str default_listen_queue: 默认监听队列名称
-        :param str send_queue:  发送队列名称
         :param str binding_keys:  绑定路由key列表，多个用空格隔开, 默认 coffee.#
         """
-        if exchange is None or send_queue is None:
-            raise ValueError('exchange and send_queue both can not be blank!')
+        if exchange is None:
+            raise ValueError('exchange can not be blank!')
         self.exchange = exchange
         self.default_listen_queue = default_listen_queue
-        self.send_queue = send_queue
         self.binding_keys = binding_keys.split()
         print(self.binding_keys)
 
@@ -62,7 +60,6 @@ class RabbitMqService:
         self.channel = connection.channel()
         self.exchange = queue_config.exchange
         self.default_listen_queue = queue_config.default_listen_queue
-        self.send_queue = queue_config.send_queue
         self.binding_keys = queue_config.binding_keys
         for binding_key in self.binding_keys:
             queue_name = binding_key + '_Queue'
