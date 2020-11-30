@@ -3,17 +3,16 @@
 # @Date    : 2020/10/26
 # @Author  : HiCooper
 # @Desc    : 消息队列服务 使用示例
+import random
 import sys
 
 from rabbitmq.analysis_exception import AnalysisException
 from rabbitmq.rabbitmq_service import QueueConfig
 from rabbitmq.rabbitmq_service import RabbitMqService
 
-import random
+queue_config = QueueConfig(binding_keys='coffee.cxa coffee.cc')
 
-queue_config = QueueConfig(exchange='topicExchange', default_listen_queue='coffeeBabyQueue',
-                           binding_keys='coffee.cxa coffee.cc')
-# 初始化服务
+# 实例化服务
 rabbitmq_service = RabbitMqService(host='192.168.33.10', username='bagua', password='1qaz@WSX',
                                    queue_config=queue_config)
 

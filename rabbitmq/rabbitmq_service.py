@@ -20,7 +20,7 @@ logger.addHandler(handler)
 
 
 class QueueConfig:
-    def __init__(self, exchange=None, default_listen_queue='coffeeBabyQueue',
+    def __init__(self, exchange="topicExchange", default_listen_queue='coffeeBabyQueue',
                  binding_keys='coffee.#'):
         """
         初始化队列相关配置
