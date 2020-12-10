@@ -4,13 +4,13 @@
 # @Author  : HiCooper
 # @Desc    : 消息队列服务
 
+import logging
+
 import pika
 from pika.credentials import PlainCredentials
 
 import validators
 from rabbitmq.analysis_exception import AnalysisException
-
-import logging
 
 logging.basicConfig(filename='rabbitmq.log', level=logging.INFO)
 logger = logging.getLogger()
@@ -79,13 +79,35 @@ class RabbitMqService:
         其中 模式： mustang.# 与 Java 约定，不可修改
         :param str message:  消息内容 str
         :param str msg_type: pass | fail 分别对应发送到成功和失败队列, 默认 pass
-        :return:
+        :raises ValueError:
         """
-        # send message to queue(hello)
+        validators.require_string(message, 'message')
         self.channel.basic_publish(exchange=self.exchange,
                                    routing_key=self.SEND_ROUTING_KEY_PREFIX + msg_type,
                                    body=message)
         logger.info("send %s message successful!", msg_type)
+
+    def update_status(self, record_id, status='ON_CLASSIFY'):
+        """
+        更新执行状态
+        :param str record_id: ''
+        :param str status:
+                ON_CLASSIFY 分类中 （默认值）
+                ON_EXTRACT 提取中
+                ON_SUB_KEY_RECOGNISE 子项识别中
+                ON_ANALYSIS 解析中（规则比对）
+                DONE 处理完成
+        """
+        if record_id is None or record_id == '':
+            raise ValueError('record_id cannot be blank')
+        message = {
+            'record_id': record_id,
+            'status': status
+        }
+        self.channel.basic_publish(exchange=self.exchange,
+                                   routing_key='notice.status',
+                                   body=str(message))
+        logger.info("update %s status to %s successful!", record_id, status)
 
     def start_listening(self, do_task):
         """
@@ -97,7 +119,7 @@ class RabbitMqService:
                 method: spec.Basic.Deliver
                 properties: spec.BasicProperties
                 body: bytes
-        :return:
+        :raises ValueError:
         """
 
         validators.require_callback(do_task, callback_name='do_task')
@@ -105,10 +127,11 @@ class RabbitMqService:
         def callback(ch, method, properties, body):
             delivery_tag = method.delivery_tag
             routing_key = method.routing_key
-            logger.info("Received message from %s, body: %s ", (routing_key, body.decode('utf-8')))
+            msg_body = body.decode('utf-8')
+            logger.info("Received message from %s, body: %s ", routing_key, msg_body)
             # 执行回调
             try:
-                do_task()
+                do_task(msg_body)
                 self._send_message('wow i received a message from you , i got u(%s)' % routing_key)
                 self.channel.basic_ack(delivery_tag=delivery_tag)
             except AnalysisException as e:
