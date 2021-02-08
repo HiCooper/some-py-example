@@ -3,20 +3,16 @@
 # @Date    : 2020/10/26
 # @Author  : HiCooper
 # @Desc    : 消息队列服务
-
-import logging
+import json
 
 import pika
 from pika.credentials import PlainCredentials
 
 import validators
+
 from rabbitmq.analysis_exception import AnalysisException
 
-logging.basicConfig(filename='rabbitmq.log', level=logging.INFO)
-logger = logging.getLogger()
-handler = logging.StreamHandler()
-handler.setLevel(logging.INFO)
-logger.addHandler(handler)
+from logger_init import logger
 
 
 class QueueConfig:
@@ -84,7 +80,7 @@ class RabbitMqService:
         validators.require_string(message, 'message')
         self.channel.basic_publish(exchange=self.exchange,
                                    routing_key=self.SEND_ROUTING_KEY_PREFIX + msg_type,
-                                   body=message)
+                                   body=bytes(message, 'utf8'))
         logger.info("send %s message successful!", msg_type)
 
     def update_status(self, record_id, status='ON_CLASSIFY'):
@@ -106,7 +102,7 @@ class RabbitMqService:
         }
         self.channel.basic_publish(exchange=self.exchange,
                                    routing_key='notice.status',
-                                   body=str(message))
+                                   body=bytes(str(message), 'utf8'))
         logger.info("update %s status to %s successful!", record_id, status)
 
     def start_listening(self, do_task):
@@ -129,18 +125,35 @@ class RabbitMqService:
             routing_key = method.routing_key
             msg_body = body.decode('utf-8')
             logger.info("Received message from %s, body: %s ", routing_key, msg_body)
+            record = json.loads(msg_body)
+            if 'record_id' not in record:
+                raise AnalysisException(message='illegal msg, miss:record_id')
+            record_id = record['record_id']
             # 执行回调
             try:
-                do_task(msg_body)
-                self._send_message('wow i received a message from you , i got u(%s)' % routing_key)
+                do_task(record)
+                # msg
+                success_message = str({
+                    'time_cost': 0,
+                    'document_classify': [],
+                    'document_kv_info': [],
+                    'rule_output_data': [],
+                    'record_id': record_id
+                })
+                self._send_message(success_message)
                 self.channel.basic_ack(delivery_tag=delivery_tag)
             except AnalysisException as e:
-                logger.info('analysis exception: error: %s', e.message)
-                self._send_message(e.message, msg_type='fail')
+                logger.warn('analysis exception: error: %s', e)
+                fail_msg = str({
+                    'sid': e.sid,
+                    'message': e.message,
+                    'record_id': record_id
+                })
+                self._send_message(fail_msg, msg_type='fail')
                 self.channel.basic_ack(delivery_tag=delivery_tag)
             except BaseException as e:
-                logger.info('something bad happened..., message will requeue, error: %s', e.args)
-                self.channel.basic_reject(delivery_tag=delivery_tag)
+                logger.error('something bad happened..., error: %s', e.args)
+                self.channel.basic_ack(delivery_tag=delivery_tag)
             finally:
                 logger.info('Done !')
 

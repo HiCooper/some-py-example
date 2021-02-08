@@ -6,5 +6,6 @@
 
 
 class AnalysisException(RuntimeError):
-    def __init__(self, message):
+    def __init__(self, message, sid=''):
         self.message = message
+        self.sid = sid
